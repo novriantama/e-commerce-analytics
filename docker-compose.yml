@@ -1,0 +1,219 @@
+version: '3.8'
+
+services:
+  # --- APACHE KAFKA (KRaft mode, no Zookeeper required) ---
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    ports:
+      - "${KAFKA_PORT}:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: 'CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT'
+      KAFKA_ADVERTISED_LISTENERS: 'PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:${KAFKA_PORT}'
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_PROCESS_ROLES: 'broker,controller'
+      KAFKA_CONTROLLER_QUORUM_VOTERS: '1@kafka:${KAFKA_CONTROLLER_PORT}'
+      KAFKA_LISTENERS: 'PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:${KAFKA_CONTROLLER_PORT},PLAINTEXT_HOST://0.0.0.0:29092'
+      KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
+      KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
+      KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
+      CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    networks:
+      - ecommerce_network
+
+  # --- MINIO OBJECT STORAGE (Data Lake Bronze/Raw Layer) ---
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    ports:
+      - "${MINIO_PORT}:9000"
+      - "${MINIO_CONSOLE_PORT}:${MINIO_CONSOLE_PORT}"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: server /data --console-address ":${MINIO_CONSOLE_PORT}"
+    volumes:
+      - minio_data:/data
+    networks:
+      - ecommerce_network
+
+  # Helper service to create the MinIO bucket
+  minio-init:
+    image: minio/mc:latest
+    container_name: minio-init
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set myminio http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD}; do echo 'Waiting for MinIO...'; sleep 1; done;
+      mc mb --ignore-existing myminio/$${MINIO_BUCKET_NAME};
+      echo 'MinIO Bucket created successfully!';
+      exit 0;
+      "
+    networks:
+      - ecommerce_network
+
+  # --- CLICKHOUSE COLUMNAR OLAP WAREHOUSE ---
+  clickhouse:
+    image: clickhouse/clickhouse-server:23.8
+    container_name: clickhouse
+    ports:
+      - "${CLICKHOUSE_HTTP_PORT}:8123"
+      - "${CLICKHOUSE_PORT}:9000"
+    environment:
+      CLICKHOUSE_USER: ${CLICKHOUSE_USER}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DB: ${CLICKHOUSE_DB}
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    networks:
+      - ecommerce_network
+
+  # --- POSTGRES (Metadata database for Airflow) ---
+  postgres:
+    image: postgres:13-alpine
+    container_name: postgres
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ecommerce_network
+
+  # --- APACHE AIRFLOW ORCHESTRATION ---
+  airflow-init:
+    image: ${AIRFLOW_IMAGE_NAME}
+    container_name: airflow-init
+    depends_on:
+      - postgres
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW_UID: ${AIRFLOW_UID}
+    command: >
+      bash -c "airflow db init &&
+      airflow users create
+      --username ${AIRFLOW_USER}
+      --password ${AIRFLOW_PASSWORD}
+      --firstname Admin
+      --lastname User
+      --role Admin
+      --email ${AIRFLOW_EMAIL}"
+    networks:
+      - ecommerce_network
+
+  airflow-webserver:
+    image: ${AIRFLOW_IMAGE_NAME}
+    container_name: airflow-webserver
+    depends_on:
+      - postgres
+      - airflow-init
+    ports:
+      - "${AIRFLOW_WEBSERVER_PORT}:8080"
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW_UID: ${AIRFLOW_UID}
+    command: webserver
+    volumes:
+      - ./dags:/opt/airflow/dags
+    networks:
+      - ecommerce_network
+
+  airflow-scheduler:
+    image: ${AIRFLOW_IMAGE_NAME}
+    container_name: airflow-scheduler
+    depends_on:
+      - postgres
+      - airflow-init
+    environment:
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+      AIRFLOW_UID: ${AIRFLOW_UID}
+    command: scheduler
+    volumes:
+      - ./dags:/opt/airflow/dags
+    networks:
+      - ecommerce_network
+
+  # --- APACHE SUPERSET BI DASHBOARD ---
+  superset:
+    image: apache/superset:latest
+    container_name: superset
+    ports:
+      - "${SUPERSET_PORT}:8088"
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+    volumes:
+      - superset_data:/app/superset_home
+    depends_on:
+      - clickhouse
+    networks:
+      - ecommerce_network
+
+  superset-init:
+    image: apache/superset:latest
+    container_name: superset-init
+    depends_on:
+      - superset
+    environment:
+      SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
+      SUPERSET_USER: ${SUPERSET_USER}
+      SUPERSET_PASSWORD: ${SUPERSET_PASSWORD}
+    command: >
+      bash -c "
+      superset db upgrade &&
+      superset fab create-admin
+      --username $${SUPERSET_USER}
+      --firstname Superset
+      --lastname Admin
+      --email admin@superset.com
+      --password $${SUPERSET_PASSWORD} &&
+      superset init
+      "
+    networks:
+      - ecommerce_network
+
+  # --- GOLANG KAFKA PRODUCER (Event Simulator) ---
+  kafka-producer:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: kafka-producer
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_BROKERS: kafka:9092
+    volumes:
+      - ./data:/data
+    networks:
+      - ecommerce_network
+
+networks:
+  ecommerce_network:
+    driver: bridge
+
+volumes:
+  minio_data:
+    driver: local
+  clickhouse_data:
+    driver: local
+  postgres_data:
+    driver: local
+  superset_data:
+    driver: local
