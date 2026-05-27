@@ -107,6 +107,7 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
       AIRFLOW_UID: ${AIRFLOW_UID}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
     command: >
       bash -c "airflow db init &&
       airflow users create
@@ -125,6 +126,7 @@ services:
       dockerfile: docker/airflow/Dockerfile
     image: ecommerce_analytics-airflow:latest
     container_name: airflow-webserver
+    restart: on-failure
     depends_on:
       - postgres
       - airflow-init
@@ -141,6 +143,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
     command: webserver
     volumes:
       - ./dags:/opt/airflow/dags
@@ -154,6 +157,7 @@ services:
       dockerfile: docker/airflow/Dockerfile
     image: ecommerce_analytics-airflow:latest
     container_name: airflow-scheduler
+    restart: on-failure
     depends_on:
       - postgres
       - airflow-init
@@ -168,6 +172,7 @@ services:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME}
+      AIRFLOW__WEBSERVER__SECRET_KEY: ${AIRFLOW_SECRET_KEY}
     command: scheduler
     volumes:
       - ./dags:/opt/airflow/dags

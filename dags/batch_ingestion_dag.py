@@ -10,13 +10,13 @@ from minio import Minio
 import clickhouse_connect
 
 # Configurations from environment variables
-MINIO_HOST = "minio:9000"
+MINIO_HOST = "minio:"+os.getenv("MINIO_PORT", "9000")
 MINIO_USER = os.getenv("MINIO_ROOT_USER", "minio_admin")
 MINIO_PASS = os.getenv("MINIO_ROOT_PASSWORD", "minio_admin_pass")
 MINIO_BUCKET = os.getenv("MINIO_BUCKET_NAME", "ecommerce-raw")
 
 CLICKHOUSE_HOST = "clickhouse"
-CLICKHOUSE_PORT = 8123
+CLICKHOUSE_PORT = os.getenv("CLICKHOUSE_PORT", "8123")
 CLICKHOUSE_USER = os.getenv("CLICKHOUSE_USER", "clickhouse_admin")
 CLICKHOUSE_PASS = os.getenv("CLICKHOUSE_PASSWORD", "clickhouse_admin_pass")
 CLICKHOUSE_DB = os.getenv("CLICKHOUSE_DB", "ecommerce")
@@ -123,7 +123,7 @@ def load_from_minio_to_clickhouse(dataset_name):
     ch_client.command(f"TRUNCATE TABLE IF EXISTS {CLICKHOUSE_DB}.{table_name}")
     
     # Load using ClickHouse s3 function
-    s3_url = f"http://minio:9000/{MINIO_BUCKET}/bronze/{table_name}/*.parquet"
+    s3_url = f"http://{MINIO_HOST}/{MINIO_BUCKET}/bronze/{table_name}/*.parquet"
     print(f"Loading data into ClickHouse from S3 URL: {s3_url}...")
     
     load_query = f"""
