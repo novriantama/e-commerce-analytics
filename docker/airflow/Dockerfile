@@ -17,4 +17,5 @@ RUN pip install --no-cache-dir \
     pandas \
     pyarrow \
     minio \
-    clickhouse-connect
+    clickhouse-connect \
+    kafka-python-ng

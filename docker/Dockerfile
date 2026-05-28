@@ -5,10 +5,10 @@ WORKDIR /app
 
 # Download dependencies
 COPY jobs/producer/go.mod ./
-RUN go mod download
-
-# Copy source code and build
 COPY jobs/producer/main.go ./
+RUN go mod tidy
+
+# Build
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o producer .
 
 # Stage 2: Run container
