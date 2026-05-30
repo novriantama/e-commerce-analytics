@@ -1,0 +1,26 @@
+name: 'dbt_ecommerce'
+version: '1.0.0'
+config-version: 2
+
+# This setting configures which profile dbt will use from profiles.yml
+profile: 'dbt_ecommerce'
+
+# These directories will be created/used by dbt
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+# Configure models materialization defaults
+models:
+  dbt_ecommerce:
+    staging:
+      materialized: view
+    marts:
+      materialized: table

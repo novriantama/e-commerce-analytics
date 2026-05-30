@@ -1,4 +1,4 @@
-.PHONY: download-data build up down logs clean help
+.PHONY: download-data build up down logs clean help dbt-init dbt-run dbt-clean
 
 # Default target
 help:
@@ -8,7 +8,10 @@ help:
 	@echo "  make up            - Start all services in the background"
 	@echo "  make down          - Stop and remove all services"
 	@echo "  make logs          - Tail container logs"
-	@echo "  make clean         - Stop services, remove volumes, and delete raw downloaded dataset files"
+	@echo "  make clean         - Stop services, remove volumes, delete raw downloaded dataset files and dbt env"
+	@echo "  make dbt-init      - Create local virtual environment and install dbt-clickhouse"
+	@echo "  make dbt-run       - Execute dbt models (compile and build fact_orders in ClickHouse)"
+	@echo "  make dbt-clean     - Remove dbt target, log and package directories"
 
 # 1. Download and extract Kaggle dataset
 download-data:
@@ -43,9 +46,27 @@ down:
 logs:
 	docker compose logs -f
 
-# 6. Clean up docker environment and downloaded data
-clean:
+# 6. Clean up docker environment, downloaded data, and dbt env
+clean: dbt-clean
 	@echo "=== Cleaning Up Docker Volumes and Files ==="
 	docker compose down -v
-	rm -rf data
+	rm -rf data .venv-dbt
 	@echo "=== Cleanup Complete ==="
+
+# 7. Initialize dbt virtual environment and dependencies
+dbt-init:
+	@echo "=== Setting up dbt virtual environment ==="
+	python3 -m venv .venv-dbt
+	.venv-dbt/bin/pip install --upgrade pip
+	.venv-dbt/bin/pip install dbt-clickhouse
+	@echo "=== dbt Ready ==="
+
+# 8. Run dbt models
+dbt-run:
+	@echo "=== Running dbt Models ==="
+	cd dbt_ecommerce && ../.venv-dbt/bin/dbt run --profiles-dir .
+
+# 9. Clean dbt target output
+dbt-clean:
+	@echo "=== Cleaning dbt targets ==="
+	rm -rf dbt_ecommerce/target dbt_ecommerce/dbt_packages dbt_ecommerce/logs

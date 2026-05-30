@@ -1,0 +1,14 @@
+version: 2
+
+sources:
+  - name: ecommerce
+    schema: ecommerce
+    tables:
+      - name: orders
+      - name: order_items
+      - name: order_payments
+      - name: order_reviews
+      - name: customers
+      - name: sellers
+      - name: products
+      - name: product_category_name_translation

@@ -218,3 +218,9 @@ __marimo__/
 .streamlit/secrets.toml
 
 data/
+
+# dbt specific
+.venv-dbt/
+dbt_ecommerce/target/
+dbt_ecommerce/dbt_packages/
+dbt_ecommerce/dbt_modules/

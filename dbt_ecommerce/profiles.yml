@@ -1,0 +1,11 @@
+dbt_ecommerce:
+  outputs:
+    dev:
+      type: clickhouse
+      schema: analytical
+      host: localhost
+      port: 8124
+      user: clickhouse_admin
+      password: clickhouse_admin_pass
+      secure: False
+  target: dev
