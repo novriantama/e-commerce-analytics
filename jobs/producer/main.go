@@ -124,8 +124,8 @@ func ensureTopic(broker string, topic string) error {
 	topicConfigs := []kafka.TopicConfig{
 		{
 			Topic:             topic,
-			NumPartitions:     1,
-			ReplicationFactor: 1,
+			NumPartitions:     3,
+			ReplicationFactor: 3,
 		},
 	}
 
@@ -138,6 +138,38 @@ func ensureTopic(broker string, topic string) error {
 	}
 	log.Printf("Topic %s is ready\n", topic)
 	return nil
+}
+
+func publishMessageWithRetry(ctx context.Context, writer *kafka.Writer, key []byte, value []byte) error {
+	backoff := 100 * time.Millisecond
+	maxBackoff := 5 * time.Second
+	var err error
+
+	for i := 0; i < 5; i++ {
+		// Set a timeout for the individual write operation so metadata lookup doesn't block forever
+		writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		err = writer.WriteMessages(writeCtx, kafka.Message{
+			Key:   key,
+			Value: value,
+		})
+		cancel() // Free resources immediately
+
+		if err == nil {
+			return nil
+		}
+
+		log.Printf("Transient write failure to topic %s: %v. Retrying in %v (attempt %d/5)...\n", writer.Topic, err, backoff, i+1)
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(backoff):
+		}
+		backoff *= 2
+		if backoff > maxBackoff {
+			backoff = maxBackoff
+		}
+	}
+	return fmt.Errorf("failed to write message after retries: %w", err)
 }
 
 func main() {
@@ -332,12 +364,16 @@ func main() {
 		log.Fatalf("Could not verify Kafka topics: %v", err)
 	}
 
-		// 5. Create Kafka Writers
+	// 5. Create Kafka Writers
 	ordersWriter := &kafka.Writer{
 		Addr:         kafka.TCP(brokers...),
 		Topic:        "orders",
 		Balancer:     &kafka.LeastBytes{},
 		BatchTimeout: 10 * time.Millisecond,
+		MaxAttempts:  5,
+		RequiredAcks: kafka.RequireOne,
+		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  10 * time.Second,
 	}
 	defer ordersWriter.Close()
 
@@ -346,6 +382,10 @@ func main() {
 		Topic:        "order_items",
 		Balancer:     &kafka.LeastBytes{},
 		BatchTimeout: 10 * time.Millisecond,
+		MaxAttempts:  5,
+		RequiredAcks: kafka.RequireOne,
+		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  10 * time.Second,
 	}
 	defer itemsWriter.Close()
 
@@ -354,6 +394,10 @@ func main() {
 		Topic:        "order_payments",
 		Balancer:     &kafka.LeastBytes{},
 		BatchTimeout: 10 * time.Millisecond,
+		MaxAttempts:  5,
+		RequiredAcks: kafka.RequireOne,
+		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  10 * time.Second,
 	}
 	defer paymentsWriter.Close()
 
@@ -362,11 +406,14 @@ func main() {
 		Topic:        "order_reviews",
 		Balancer:     &kafka.LeastBytes{},
 		BatchTimeout: 10 * time.Millisecond,
+		MaxAttempts:  5,
+		RequiredAcks: kafka.RequireOne,
+		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  10 * time.Second,
 	}
 	defer reviewsWriter.Close()
 
 	// 6. Start Streaming Simulation
-	// 20000 orders/hour = 20000 orders / 3600 seconds = 5.55 orders/second = 1 order event package every ~180ms.
 	intervalMs := 3600 * 1000 / 20000
 	delay := time.Duration(intervalMs) * time.Millisecond
 	log.Printf("Starting stream. Speed: 20000 orders/hour. Event interval: %v\n", delay)
@@ -382,10 +429,7 @@ func main() {
 				log.Printf("Failed to marshal order: %v\n", err)
 				continue
 			}
-			err = ordersWriter.WriteMessages(ctx, kafka.Message{
-				Key:   []byte(order.OrderID),
-				Value: orderJSON,
-			})
+			err = publishMessageWithRetry(ctx, ordersWriter, []byte(order.OrderID), orderJSON)
 			if err != nil {
 				log.Printf("Failed to write order: %v\n", err)
 			}
@@ -394,10 +438,7 @@ func main() {
 			if items, ok := itemsMap[order.OrderID]; ok {
 				for _, item := range items {
 					itemJSON, _ := json.Marshal(item)
-					_ = itemsWriter.WriteMessages(ctx, kafka.Message{
-						Key:   []byte(item.OrderID),
-						Value: itemJSON,
-					})
+					_ = publishMessageWithRetry(ctx, itemsWriter, []byte(item.OrderID), itemJSON)
 				}
 			}
 
@@ -405,10 +446,7 @@ func main() {
 			if payments, ok := paymentsMap[order.OrderID]; ok {
 				for _, payment := range payments {
 					paymentJSON, _ := json.Marshal(payment)
-					_ = paymentsWriter.WriteMessages(ctx, kafka.Message{
-						Key:   []byte(payment.OrderID),
-						Value: paymentJSON,
-					})
+					_ = publishMessageWithRetry(ctx, paymentsWriter, []byte(payment.OrderID), paymentJSON)
 				}
 			}
 
@@ -416,10 +454,7 @@ func main() {
 			if reviews, ok := reviewsMap[order.OrderID]; ok {
 				for _, review := range reviews {
 					reviewJSON, _ := json.Marshal(review)
-					_ = reviewsWriter.WriteMessages(ctx, kafka.Message{
-						Key:   []byte(review.OrderID),
-						Value: reviewJSON,
-					})
+					_ = publishMessageWithRetry(ctx, reviewsWriter, []byte(review.OrderID), reviewJSON)
 				}
 			}
 

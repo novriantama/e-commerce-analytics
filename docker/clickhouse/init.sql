@@ -117,7 +117,7 @@ CREATE TABLE IF NOT EXISTS orders_queue (
     order_delivered_customer_date Nullable(String),
     order_estimated_delivery_date String
 ) ENGINE = Kafka
-SETTINGS kafka_broker_list = 'kafka:9092',
+SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
          kafka_topic_list = 'orders',
          kafka_group_name = 'clickhouse_orders_group',
          kafka_format = 'JSONEachRow',
@@ -132,7 +132,7 @@ CREATE TABLE IF NOT EXISTS order_items_queue (
     price Float64,
     freight_value Float64
 ) ENGINE = Kafka
-SETTINGS kafka_broker_list = 'kafka:9092',
+SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
          kafka_topic_list = 'order_items',
          kafka_group_name = 'clickhouse_order_items_group',
          kafka_format = 'JSONEachRow',
@@ -145,7 +145,7 @@ CREATE TABLE IF NOT EXISTS order_payments_queue (
     payment_installments Int32,
     payment_value Float64
 ) ENGINE = Kafka
-SETTINGS kafka_broker_list = 'kafka:9092',
+SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
          kafka_topic_list = 'order_payments',
          kafka_group_name = 'clickhouse_order_payments_group',
          kafka_format = 'JSONEachRow',
@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS order_reviews_queue (
     review_creation_date String,
     review_answer_timestamp String
 ) ENGINE = Kafka
-SETTINGS kafka_broker_list = 'kafka:9092',
+SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
          kafka_topic_list = 'order_reviews',
          kafka_group_name = 'clickhouse_order_reviews_group',
          kafka_format = 'JSONEachRow',
