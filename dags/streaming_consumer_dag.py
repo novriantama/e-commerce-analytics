@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -37,6 +38,8 @@ def consume_and_upload_to_minio(topic_name):
     
     records = []
     dlq_producer = None
+    start_time = time.time()
+    max_duration = 30  # Limit run time to 30 seconds per run to allow Airflow tasks to complete
     print("Polling messages...")
     try:
         for message in consumer:
@@ -67,6 +70,11 @@ def consume_and_upload_to_minio(topic_name):
             # Batch limit to prevent memory issues in Airflow
             if len(records) >= 20000:
                 print(f"Reached batch limit of {len(records)} records. Ingesting batch...")
+                break
+
+            # Time limit to allow periodic batch commits in continuous streaming
+            if time.time() - start_time > max_duration:
+                print(f"Reached max duration of {max_duration} seconds. Ingesting batch...")
                 break
     except StopIteration:
         pass

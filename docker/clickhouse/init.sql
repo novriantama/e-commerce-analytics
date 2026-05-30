@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS orders (
     order_delivered_carrier_date Nullable(DateTime),
     order_delivered_customer_date Nullable(DateTime),
     order_estimated_delivery_date DateTime
-) ENGINE = MergeTree()
+) ENGINE = ReplacingMergeTree()
 PRIMARY KEY order_id
 ORDER BY order_id;
 
@@ -82,7 +82,7 @@ CREATE TABLE IF NOT EXISTS order_items (
     shipping_limit_date DateTime,
     price Float64,
     freight_value Float64
-) ENGINE = MergeTree()
+) ENGINE = ReplacingMergeTree()
 ORDER BY (order_id, order_item_id);
 
 CREATE TABLE IF NOT EXISTS order_payments (
@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS order_payments (
     payment_type String,
     payment_installments Int32,
     payment_value Float64
-) ENGINE = MergeTree()
+) ENGINE = ReplacingMergeTree()
 ORDER BY (order_id, payment_sequential);
 
 CREATE TABLE IF NOT EXISTS order_reviews (
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS order_reviews (
     review_comment_message Nullable(String),
     review_creation_date DateTime,
     review_answer_timestamp DateTime
-) ENGINE = MergeTree()
+) ENGINE = ReplacingMergeTree()
 PRIMARY KEY review_id
 ORDER BY review_id;
 
@@ -121,7 +121,8 @@ SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
          kafka_topic_list = 'orders',
          kafka_group_name = 'clickhouse_orders_group',
          kafka_format = 'JSONEachRow',
-         kafka_num_consumers = 1;
+         kafka_num_consumers = 1,
+         kafka_skip_broken_messages = 100;
 
 CREATE TABLE IF NOT EXISTS order_items_queue (
     order_id String,
@@ -136,7 +137,8 @@ SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
          kafka_topic_list = 'order_items',
          kafka_group_name = 'clickhouse_order_items_group',
          kafka_format = 'JSONEachRow',
-         kafka_num_consumers = 1;
+         kafka_num_consumers = 1,
+         kafka_skip_broken_messages = 100;
 
 CREATE TABLE IF NOT EXISTS order_payments_queue (
     order_id String,
@@ -149,7 +151,8 @@ SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
          kafka_topic_list = 'order_payments',
          kafka_group_name = 'clickhouse_order_payments_group',
          kafka_format = 'JSONEachRow',
-         kafka_num_consumers = 1;
+         kafka_num_consumers = 1,
+         kafka_skip_broken_messages = 100;
 
 CREATE TABLE IF NOT EXISTS order_reviews_queue (
     review_id String,
@@ -164,7 +167,8 @@ SETTINGS kafka_broker_list = 'kafka1:9092,kafka2:9092,kafka3:9092',
          kafka_topic_list = 'order_reviews',
          kafka_group_name = 'clickhouse_order_reviews_group',
          kafka_format = 'JSONEachRow',
-         kafka_num_consumers = 1;
+         kafka_num_consumers = 1,
+         kafka_skip_broken_messages = 100;
 
 -- 8. Materialized Views (Transform raw formats and insert into Target Tables)
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_orders TO orders AS
@@ -172,11 +176,11 @@ SELECT
     order_id,
     customer_id,
     order_status,
-    parseDateTimeBestEffortOrNull(order_purchase_timestamp) AS order_purchase_timestamp,
+    coalesce(parseDateTimeBestEffortOrNull(order_purchase_timestamp), toDateTime('1970-01-01 00:00:00')) AS order_purchase_timestamp,
     parseDateTimeBestEffortOrNull(order_approved_at) AS order_approved_at,
     parseDateTimeBestEffortOrNull(order_delivered_carrier_date) AS order_delivered_carrier_date,
     parseDateTimeBestEffortOrNull(order_delivered_customer_date) AS order_delivered_customer_date,
-    parseDateTimeBestEffortOrNull(order_estimated_delivery_date) AS order_estimated_delivery_date
+    coalesce(parseDateTimeBestEffortOrNull(order_estimated_delivery_date), toDateTime('1970-01-01 00:00:00')) AS order_estimated_delivery_date
 FROM orders_queue;
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_order_items TO order_items AS
@@ -185,7 +189,7 @@ SELECT
     order_item_id,
     product_id,
     seller_id,
-    parseDateTimeBestEffortOrNull(shipping_limit_date) AS shipping_limit_date,
+    coalesce(parseDateTimeBestEffortOrNull(shipping_limit_date), toDateTime('1970-01-01 00:00:00')) AS shipping_limit_date,
     price,
     freight_value
 FROM order_items_queue;
@@ -206,7 +210,8 @@ SELECT
     review_score,
     review_comment_title,
     review_comment_message,
-    parseDateTimeBestEffortOrNull(review_creation_date) AS review_creation_date,
-    parseDateTimeBestEffortOrNull(review_answer_timestamp) AS review_answer_timestamp
+    coalesce(parseDateTimeBestEffortOrNull(review_creation_date), toDateTime('1970-01-01 00:00:00')) AS review_creation_date,
+    coalesce(parseDateTimeBestEffortOrNull(review_answer_timestamp), toDateTime('1970-01-01 00:00:00')) AS review_answer_timestamp
 FROM order_reviews_queue;
+
 
