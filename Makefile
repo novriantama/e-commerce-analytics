@@ -1,3 +1,8 @@
+ifneq (,$(wildcard .env))
+    include .env
+    export
+endif
+
 .PHONY: download-data build up down logs clean help dbt-init dbt-run dbt-clean
 
 # Default target

@@ -2,10 +2,10 @@ dbt_ecommerce:
   outputs:
     dev:
       type: clickhouse
-      schema: analytical
-      host: localhost
-      port: 8124
-      user: clickhouse_admin
-      password: clickhouse_admin_pass
+      schema: "{{ env_var('CLICKHOUSE_ANALYTICAL_DB', 'analytical') }}"
+      host: "{{ env_var('CLICKHOUSE_HOST', 'localhost') }}"
+      port: "{{ env_var('CLICKHOUSE_HTTP_PORT', '8124') | as_number }}"
+      user: "{{ env_var('CLICKHOUSE_USER', 'clickhouse_admin') }}"
+      password: "{{ env_var('CLICKHOUSE_PASSWORD', 'clickhouse_admin_pass') }}"
       secure: False
   target: dev
