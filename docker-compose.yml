@@ -248,6 +248,8 @@ services:
     container_name: superset-init
     depends_on:
       - superset
+    volumes:
+      - superset_data:/app/superset_home
     environment:
       SUPERSET_SECRET_KEY: ${SUPERSET_SECRET_KEY}
       SUPERSET_USER: ${SUPERSET_USER}
