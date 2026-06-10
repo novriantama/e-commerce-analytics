@@ -120,6 +120,18 @@ SELECT * FROM analytical.fact_orders LIMIT 5;
 SELECT count() FROM analytical.fact_orders;
 ```
 
+#### 8. Connect Apache Superset to ClickHouse
+1. Open Superset in your browser at `http://localhost:8089` (credentials: `admin` / `admin_pass`).
+2. Go to **Settings** (top right) -> **Database Connections**.
+3. Click **+ Database** to add a new connection.
+4. Select **Other** from the dropdown menu (do not select ClickHouse directly from the list, as the default ClickHouse driver has compatibility issues with SQLAlchemy 2.0).
+5. In the **SQLAlchemy URI** field, enter:
+   ```
+   clickhousedb://clickhouse_admin:clickhouse_admin_pass@clickhouse:8123/analytical
+   ```
+6. Click **Test Connection**. It should display a "Connection looks good!" notification.
+7. Click **Connect** to save the connection.
+
 ---
 
 ## 🧹 Cleanup

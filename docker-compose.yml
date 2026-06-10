@@ -230,7 +230,10 @@ services:
 
   # --- APACHE SUPERSET BI DASHBOARD ---
   superset:
-    image: apache/superset:latest
+    build:
+      context: .
+      dockerfile: docker/superset/Dockerfile
+    image: ecommerce_analytics-superset:latest
     container_name: superset
     ports:
       - "${SUPERSET_PORT}:8088"
@@ -244,7 +247,10 @@ services:
       - ecommerce_network
 
   superset-init:
-    image: apache/superset:latest
+    build:
+      context: .
+      dockerfile: docker/superset/Dockerfile
+    image: ecommerce_analytics-superset:latest
     container_name: superset-init
     depends_on:
       - superset
