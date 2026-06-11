@@ -134,6 +134,34 @@ SELECT count() FROM analytical.fact_orders;
 
 ---
 
+## 📊 BI Dashboard & Key Insights
+
+After successfully connecting Apache Superset to the ClickHouse analytical database, we built and generated the following **E-Commerce Analytics Dashboard** summarizing key metrics and performance indicators:
+
+![E-Commerce BI Dashboard](dashboard.png)
+
+### 📈 Key Performance Indicators (KPIs)
+* **Total Revenue**: **$3.3M** (Aggregate value of all completed sales)
+* **Total Orders**: **20.8k** (Volume of transactions processed)
+* **Average Order Value (AOV)**: **$136.21** (Average ticket size per order)
+* **Average Customer Rating**: **4.06 / 5.00** (Overall review rating index)
+
+### 💡 Core Analytical Insights
+
+1. **Payment Preferences**:
+   * **Credit Card** is by far the most dominant payment method, followed by **Boleto** (cash-in/bank transfer ticket).
+   * Vouchers and debit cards represent a very small fraction of the transaction volume.
+
+2. **Top Performing Product Categories**:
+   * **`bed_bath_table`** represents the leading revenue generator.
+   * Other major categories include **`furniture_decor`**, **`housewares`**, and **`watches_gifts`**.
+
+3. **Logistics & Delivery SLAs**:
+   * **SP (São Paulo)** generates the highest order concentration (exceeding 8k orders) and also the largest raw number of delayed orders.
+   * However, actual delivery duration (typically 10-20 days) is consistently **much lower** than the estimated delivery duration (typically 20-40 days) across all states. This indicates a highly conservative SLA estimation buffer strategy by the logistics department.
+
+---
+
 ## 🧹 Cleanup
 To stop all services, delete volumes, and remove the raw downloaded files:
 ```bash
